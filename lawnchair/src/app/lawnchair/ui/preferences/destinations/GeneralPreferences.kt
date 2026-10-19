@@ -16,6 +16,9 @@
 
 package app.lawnchair.ui.preferences.destinations
 
+import android.app.LocaleManager
+import android.os.Build
+import android.os.LocaleList
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -86,6 +89,38 @@ fun GeneralPreferences(modifier: Modifier = Modifier) {
         label = stringResource(id = R.string.general_label),
         modifier = modifier,
     ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            PreferenceGroup(heading = stringResource(id = R.string.app_language)) {
+                val localeManager = context.getSystemService(LocaleManager::class.java)
+                val currentLanguage = localeManager.applicationLocales.toLanguageTags()
+                    .ifBlank { LANGUAGE_FOLLOW_SYSTEM }
+                ListPreference(
+                    value = currentLanguage,
+                    onValueChange = { language ->
+                        localeManager.applicationLocales = if (language == LANGUAGE_FOLLOW_SYSTEM) {
+                            LocaleList.getEmptyLocaleList()
+                        } else {
+                            LocaleList.forLanguageTags(language)
+                        }
+                    },
+                    entries = listOf(
+                        ListPreferenceEntry(
+                            value = LANGUAGE_FOLLOW_SYSTEM,
+                            label = { stringResource(id = R.string.language_follow_system) },
+                        ),
+                        ListPreferenceEntry(
+                            value = LANGUAGE_CHINESE,
+                            label = { stringResource(id = R.string.language_chinese_simplified) },
+                        ),
+                        ListPreferenceEntry(
+                            value = LANGUAGE_ENGLISH,
+                            label = { stringResource(id = R.string.language_english) },
+                        ),
+                    ),
+                    label = stringResource(id = R.string.app_language),
+                )
+            }
+        }
         PreferenceGroup {
             SwitchPreference(
                 adapter = prefs.allowRotation.getAdapter(),
@@ -203,6 +238,10 @@ fun GeneralPreferences(modifier: Modifier = Modifier) {
         }
     }
 }
+
+private const val LANGUAGE_FOLLOW_SYSTEM = "system"
+private const val LANGUAGE_CHINESE = "zh-CN"
+private const val LANGUAGE_ENGLISH = "en"
 
 @Composable
 private fun ColorStylePreference(

@@ -39,9 +39,8 @@ class VerticalSwipeTouchController(
     private var pointerCount = 0
     private var triggered = false
 
-    // LC: a touch that starts on a paged dock belongs to the pager while it is mostly horizontal.
+    // Let pagers handle horizontal-dominant touches before a vertical gesture can claim them.
     private val touchSlop = ViewConfiguration.get(launcher).scaledTouchSlop
-    private var downOnPagedDock = false
     private var downX = 0f
     private var downY = 0f
 
@@ -69,12 +68,11 @@ class VerticalSwipeTouchController(
             if (noIntercept) {
                 return false
             }
-            downOnPagedDock = isOnPagedDock(ev)
             downX = ev.x
             downY = ev.y
             detector.setDetectableScrollConditions(getSwipeDirection(), false)
-        } else if (downOnPagedDock && !noIntercept &&
-            HorizontalSwipeFilter.isHorizontalSwipe(ev.x - downX, ev.y - downY, touchSlop / 2f)
+        } else if (!noIntercept &&
+            HorizontalSwipeFilter.isHorizontalSwipe(ev.x - downX, ev.y - downY, touchSlop.toFloat())
         ) {
             noIntercept = true
         }
@@ -89,11 +87,6 @@ class VerticalSwipeTouchController(
         // We don't need to check when the pointer count changes during a swipe
         pointerCount = ev.pointerCount
         return detector.onTouchEvent(ev)
-    }
-
-    private fun isOnPagedDock(ev: MotionEvent): Boolean {
-        val hotseat = launcher.hotseat ?: return false
-        return hotseat.pagedView.isPagingEnabled && launcher.dragLayer.isEventOverView(hotseat, ev)
     }
 
     private fun canInterceptTouch(ev: MotionEvent): Boolean {
@@ -120,9 +113,12 @@ class VerticalSwipeTouchController(
     override fun onDrag(displacement: PointF, motionEvent: MotionEvent): Boolean {
         if (triggered) return true
         val velocity = computeVelocity(displacement.y - currentDisplacement, motionEvent.eventTime)
-        if (velocity.absoluteValue > TRIGGER_VELOCITY) {
+        val isSwipeUp = velocity < -TRIGGER_VELOCITY
+        val isSwipeDown = velocity > TRIGGER_VELOCITY &&
+            displacement.y > touchSlop * DOWN_EXTRA_DISTANCE_MULTIPLIER
+        if (isSwipeUp || isSwipeDown) {
             triggered = true
-            if (velocity < 0) {
+            if (isSwipeUp) {
                 if (pointerCount == 1) {
                     gestureController.onSwipeUp()
                 } else if (pointerCount == 2) {
@@ -179,5 +175,6 @@ class VerticalSwipeTouchController(
     companion object {
         private const val SCROLL_VELOCITY_DAMPENING_RC = 1000f / (2f * Math.PI.toFloat() * 10f)
         private const val TRIGGER_VELOCITY = 2.25f
+        private const val DOWN_EXTRA_DISTANCE_MULTIPLIER = 3f
     }
 }
