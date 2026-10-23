@@ -19,7 +19,9 @@ import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
+import android.content.pm.PackageManager
 import android.content.pm.LauncherApps.ShortcutQuery
 import android.content.pm.PackageInstaller
 import android.content.pm.ShortcutInfo
@@ -227,6 +229,16 @@ class WorkspaceItemProcessor(
         }
         val appInfoWrapper = ApplicationInfoWrapper(context, targetPkg, c.user)
         var validTarget = launcherApps.isPackageEnabled(targetPkg, c.user)
+        val isInstalledButDisabled =
+            !validTarget && isPackageInstalledButDisabled(targetPkg, c.user)
+
+        if (isInstalledButDisabled) {
+            FileLog.d(
+                TAG,
+                "package is installed but disabled: $targetPkg, itemType=${c.itemType}. " +
+                    "Keeping the restored item until the package is enabled.",
+            )
+        }
 
         // If it's a deep shortcut, we'll use pinned shortcuts to restore it
         if (cn != null && validTarget && (c.itemType != Favorites.ITEM_TYPE_DEEP_SHORTCUT)) {
@@ -277,6 +289,15 @@ class WorkspaceItemProcessor(
         // else if cn == null => can't infer much, leave it
         // else if !validPkg => could be restored icon or missing sd-card
         when {
+            isInstalledButDisabled -> {
+                // Ice Box and similar app freezers disable the package without uninstalling it.
+                // Keep the restored icon and mark it unavailable instead of treating it as an
+                // app that failed to restore. The normal package-enabled update will clear this
+                // flag after the app is unfrozen.
+                disabledState =
+                    disabledState or WorkspaceItemInfo.FLAG_DISABLED_NOT_AVAILABLE
+                allowMissingTarget = true
+            }
             !TextUtils.isEmpty(targetPkg) && (!validTarget || isPreArchivedShortcut) -> {
                 // Points to a valid app (superset of cn != null) but the apk
                 // is not available.
@@ -372,24 +393,39 @@ class WorkspaceItemProcessor(
                     val pinnedShortcut =
                         shortcutKeyToPinnedShortcuts[key] ?: retryDeepShortcutById(key)
                     if (pinnedShortcut == null) {
-                        // The shortcut is no longer valid.
-                        c.markDeleted(
-                            "Pinned shortcut not found from request. package=${key.packageName}, user=${c.user}",
-                            RestoreError.SHORTCUT_NOT_FOUND,
-                        )
-                        return
+                        if (key.packageName == ICE_BOX_PACKAGE) {
+                            // Ice Box publishes its frozen-app entries as dynamic shortcuts. They
+                            // can be absent from the pinned-shortcut query while the Ice Box
+                            // activity and the backed-up database icon are still valid. Do not
+                            // delete the entry in that case: its saved intent points to Ice Box,
+                            // which can defrost the target app when the icon is tapped.
+                            FileLog.w(
+                                TAG,
+                                "Keeping Ice Box shortcut whose published ShortcutInfo is missing: " +
+                                    "id=${key.id}, user=${c.user}",
+                            )
+                            info = c.loadSimpleWorkspaceItem()
+                        } else {
+                            // The shortcut is no longer valid.
+                            c.markDeleted(
+                                "Pinned shortcut not found from request. package=${key.packageName}, user=${c.user}",
+                                RestoreError.SHORTCUT_NOT_FOUND,
+                            )
+                            return
+                        }
+                    } else {
+                        info = WorkspaceItemInfo(pinnedShortcut, context)
+                        // If the pinned deep shortcut is no longer published,
+                        // use the last saved icon instead of the default.
+                        val csi = CacheableShortcutInfo(pinnedShortcut, appInfoWrapper)
+                        iconCache.getShortcutIcon(info, csi, c::loadIconFromDb)
+                        if (appInfoWrapper.isSuspended()) {
+                            info.runtimeStatusFlags =
+                                info.runtimeStatusFlags or ItemInfoWithIcon.FLAG_DISABLED_SUSPENDED
+                        }
+                        intent = info.getIntent()
+                        allDeepShortcuts.add(csi)
                     }
-                    info = WorkspaceItemInfo(pinnedShortcut, context)
-                    // If the pinned deep shortcut is no longer published,
-                    // use the last saved icon instead of the default.
-                    val csi = CacheableShortcutInfo(pinnedShortcut, appInfoWrapper)
-                    iconCache.getShortcutIcon(info, csi, c::loadIconFromDb)
-                    if (appInfoWrapper.isSuspended()) {
-                        info.runtimeStatusFlags =
-                            info.runtimeStatusFlags or ItemInfoWithIcon.FLAG_DISABLED_SUSPENDED
-                    }
-                    intent = info.getIntent()
-                    allDeepShortcuts.add(csi)
                 } else {
                     // Create a shortcut info in disabled mode for now.
                     info = c.loadSimpleWorkspaceItem()
@@ -476,6 +512,30 @@ class WorkspaceItemProcessor(
             c.checkAndAddItem(info, loadedItems, memoryLogger)
         } else {
             throw RuntimeException("Unexpected null WorkspaceItemInfo")
+        }
+    }
+
+    /**
+     * Returns true when the package is still installed for the user but currently disabled.
+     *
+     * LauncherApps.isPackageEnabled intentionally returns false for frozen packages, so it
+     * cannot distinguish an Ice Box-style freeze from an uninstall. Querying with disabled
+     * components included lets restore keep the backed-up icon in the former case.
+     */
+    private fun isPackageInstalledButDisabled(
+        packageName: String,
+        user: android.os.UserHandle,
+    ): Boolean {
+        return try {
+            val appInfo = launcherApps.getApplicationInfo(
+                packageName,
+                PackageManager.MATCH_UNINSTALLED_PACKAGES or
+                    PackageManager.MATCH_DISABLED_COMPONENTS,
+                user,
+            )
+            appInfo.enabled.not() && appInfo.flags and ApplicationInfo.FLAG_INSTALLED != 0
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
         }
     }
 
@@ -743,6 +803,7 @@ class WorkspaceItemProcessor(
 
     companion object {
         private const val TAG = "WorkspaceItemProcessor"
+        private const val ICE_BOX_PACKAGE = "com.catchingnow.icebox"
 
         private fun logWidgetInfo(
             idp: InvariantDeviceProfile,

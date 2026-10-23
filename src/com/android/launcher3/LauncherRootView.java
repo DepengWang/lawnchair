@@ -29,8 +29,10 @@ import com.hoko.blur.HokoBlur;
 import app.lawnchair.preferences2.PreferenceCacheExtensionsKt;
 import app.lawnchair.preferences.PreferenceManager;
 import app.lawnchair.preferences2.PreferenceManager2;
+import app.lawnchair.theme.color.ColorOption;
 import app.lawnchair.util.FileAccessManager;
 import app.lawnchair.util.FileAccessState;
+import app.lawnchair.wallpaper.WallpaperBackgroundMode;
 
 public class LauncherRootView extends InsettableFrameLayout {
 
@@ -63,9 +65,21 @@ public class LauncherRootView extends InsettableFrameLayout {
         
         mEnableTaskbarOnPhone = PreferenceCacheExtensionsKt.firstCached(prefs2.getEnableTaskbarOnPhone());
 
+        WallpaperBackgroundMode backgroundMode =
+                PreferenceCacheExtensionsKt.firstCached(prefs2.getWallpaperBackgroundMode());
+        if (backgroundMode == WallpaperBackgroundMode.SOLID_BLACK) {
+            setBackgroundColor(Color.BLACK);
+        } else if (backgroundMode == WallpaperBackgroundMode.CUSTOM_COLOR) {
+            ColorOption colorOption =
+                    PreferenceCacheExtensionsKt.firstCached(prefs2.getWallpaperBackgroundColor());
+            setBackgroundColor(colorOption.getColorPreferenceEntry().getLightColor().invoke(context));
+        }
+
         FileAccessManager fileAccessManager = FileAccessManager.getInstance(context);
         FileAccessState wallpaperAccessState = fileAccessManager.getWallpaperAccessState().getValue();
-        if (pref.getEnableWallpaperBlur().get() && wallpaperAccessState != FileAccessState.Denied.INSTANCE) {
+        if (backgroundMode == WallpaperBackgroundMode.SYSTEM
+                && pref.getEnableWallpaperBlur().get()
+                && wallpaperAccessState != FileAccessState.Denied.INSTANCE) {
             setUpBlur(context);
         }
     }

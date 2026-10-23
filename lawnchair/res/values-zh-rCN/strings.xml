@@ -575,6 +575,11 @@
     <string name="wallpaper_scrolling_label">壁纸滚动</string>
     <string name="wallpaper_depth_effect_label">壁纸缩放特效</string>
     <string name="wallpaper_depth_effect_description">在启动器区域之间过渡时缩放壁纸</string>
+    <string name="wallpaper_background_mode">桌面背景模式</string>
+    <string name="wallpaper_background_system">系统壁纸</string>
+    <string name="wallpaper_background_solid_black">纯黑背景</string>
+    <string name="wallpaper_background_custom_color">自定义纯色背景</string>
+    <string name="wallpaper_background_custom_color_label">背景颜色</string>
     <string name="show_sys_ui_scrim">顶部阴影</string>
     <string name="infinite_scrolling_label">循环滚动</string>
     <string name="infinite_scrolling_description">在桌面页面间无限循环滚动</string>

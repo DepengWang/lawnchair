@@ -38,8 +38,10 @@ import app.lawnchair.ui.preferences.components.GestureHandlerPreference
 import app.lawnchair.ui.preferences.components.HomeLayoutSettings
 import app.lawnchair.ui.preferences.components.NavigationActionPreference
 import app.lawnchair.ui.preferences.components.OverlayHandlerPreference
+import app.lawnchair.ui.preferences.components.colorpreference.ColorPreference
 import app.lawnchair.ui.preferences.components.controls.ClickablePreference
 import app.lawnchair.ui.preferences.components.controls.ListPreference
+import app.lawnchair.ui.preferences.components.controls.ListPreferenceEntry
 import app.lawnchair.ui.preferences.components.controls.SliderPreference
 import app.lawnchair.ui.preferences.components.controls.SwitchPreference
 import app.lawnchair.ui.preferences.components.layout.ExpandAndShrink
@@ -47,6 +49,7 @@ import app.lawnchair.ui.preferences.components.layout.PreferenceGroup
 import app.lawnchair.ui.preferences.components.layout.PreferenceLayout
 import app.lawnchair.ui.preferences.navigation.HomeScreenGrid
 import app.lawnchair.util.collectAsStateBlocking
+import app.lawnchair.wallpaper.WallpaperBackgroundMode
 import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherSettings
 import com.android.launcher3.R
@@ -133,6 +136,22 @@ fun HomeScreenPreferences(
             )
         }
         PreferenceGroup(heading = stringResource(id = R.string.wallpaper)) {
+            val wallpaperBackgroundModeAdapter = prefs2.wallpaperBackgroundMode.getAdapter()
+            ListPreference(
+                adapter = wallpaperBackgroundModeAdapter,
+                entries = WallpaperBackgroundMode.entries.map { mode ->
+                    ListPreferenceEntry(
+                        value = mode,
+                        label = { stringResource(id = mode.labelRes) },
+                    )
+                },
+                label = stringResource(id = R.string.wallpaper_background_mode),
+            )
+            ExpandAndShrink(
+                visible = wallpaperBackgroundModeAdapter.state.value == WallpaperBackgroundMode.CUSTOM_COLOR,
+            ) {
+                ColorPreference(preference = prefs2.wallpaperBackgroundColor)
+            }
             SwitchPreference(
                 prefs.wallpaperScrolling.getAdapter(),
                 label = stringResource(id = R.string.wallpaper_scrolling_label),

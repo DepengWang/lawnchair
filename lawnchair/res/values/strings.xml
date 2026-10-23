@@ -727,6 +727,11 @@
     <string name="wallpaper_scrolling_label">Scroll wallpaper</string>
     <string name="wallpaper_depth_effect_label">Wallpaper depth effect</string>
     <string name="wallpaper_depth_effect_description">Zoom in and out of the wallpaper when transitioning between areas of the launcher</string>
+    <string name="wallpaper_background_mode">Desktop background mode</string>
+    <string name="wallpaper_background_system">System wallpaper</string>
+    <string name="wallpaper_background_solid_black">Pure black background</string>
+    <string name="wallpaper_background_custom_color">Custom solid color</string>
+    <string name="wallpaper_background_custom_color_label">Background color</string>
     <string name="show_sys_ui_scrim">Top shadow</string>
 
     <string name="infinite_scrolling_label">Infinite scrolling</string>

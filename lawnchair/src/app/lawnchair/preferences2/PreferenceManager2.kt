@@ -48,6 +48,7 @@ import app.lawnchair.smartspace.model.SmartspaceTimeFormat
 import app.lawnchair.theme.color.ColorMode
 import app.lawnchair.theme.color.ColorOption
 import app.lawnchair.theme.color.ColorStyle
+import app.lawnchair.wallpaper.WallpaperBackgroundMode
 import app.lawnchair.ui.popup.LauncherOptionsPopup
 import app.lawnchair.ui.popup.toOptionOrderString
 import app.lawnchair.ui.preferences.components.HiddenAppsInSearch
@@ -791,6 +792,22 @@ class PreferenceManager2 @Inject constructor(
     val wallpaperDepthEffect = preference(
         key = booleanPreferencesKey(name = "enable_wallpaper_depth_effect"),
         defaultValue = true,
+        onSet = { reloadHelper.recreate() },
+    )
+
+    val wallpaperBackgroundMode = preference(
+        key = stringPreferencesKey(name = "wallpaper_background_mode"),
+        defaultValue = WallpaperBackgroundMode.SYSTEM,
+        parse = WallpaperBackgroundMode::fromString,
+        save = WallpaperBackgroundMode::toString,
+        onSet = { reloadHelper.recreate() },
+    )
+
+    val wallpaperBackgroundColor = preference(
+        key = stringPreferencesKey(name = "wallpaper_background_color"),
+        defaultValue = ColorOption.CustomColor(android.graphics.Color.BLACK),
+        parse = ColorOption::fromString,
+        save = ColorOption::toString,
         onSet = { reloadHelper.recreate() },
     )
 
