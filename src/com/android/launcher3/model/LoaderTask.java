@@ -482,7 +482,8 @@ public class LoaderTask implements Runnable {
                         mUserCache, mUserManagerState, mLauncherApps, mPendingPackages,
                         mShortcutKeyToPinnedShortcuts, mContext, mIDP, mIconCache,
                         mIsSafeModeEnabled, installingPkgs, isSdCardReady, widgetInflater,
-                        mPmHelper, mWorkspaceIconRequestInfos, unlockedUsers, allDeepShortcuts);
+                        mPmHelper, mWorkspaceIconRequestInfos, unlockedUsers, allDeepShortcuts,
+                        mIsRestoreFromBackup);
 
                 if (mStopped) {
                     Log.w(TAG, "loadWorkspaceImpl: Loader stopped, skipping item processing");

@@ -18,5 +18,6 @@
 <resources>
     <integer name="bridge_signature_hash">0xB662CC2F</integer>
     <string name="bridge_version" translatable="false">v3</string>
+    <!-- Official Lawnfeed 4 release signing certificate. -->
     <integer name="lawnfeed_signature_hash">0x60E8FB7D</integer>
 </resources>

@@ -38,7 +38,10 @@ import com.android.launcher3.folder.Folder
 import com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer
 import com.android.launcher3.Utilities
 import com.android.launcher3.icons.CacheableShortcutInfo
+import com.android.launcher3.icons.BaseIconFactory.IconOptions
+import com.android.launcher3.icons.BitmapInfo
 import com.android.launcher3.icons.IconCache
+import com.android.launcher3.icons.LauncherIcons
 import com.android.launcher3.icons.cache.CacheLookupFlag.Companion.DEFAULT_LOOKUP_FLAG
 import com.android.launcher3.logging.FileLog
 import com.android.launcher3.model.data.AppInfo
@@ -89,6 +92,7 @@ class WorkspaceItemProcessor(
     private val iconRequestInfos: MutableList<IconRequestInfo<WorkspaceItemInfo>>,
     private val unlockedUsers: LongSparseArray<Boolean>,
     private val allDeepShortcuts: MutableList<CacheableShortcutInfo>,
+    private val isRestoreFromBackup: Boolean = false,
 ) {
 
     private val loadedItems = IntSparseArrayMap<ItemInfo>()
@@ -115,8 +119,16 @@ class WorkspaceItemProcessor(
             }
             when (c.itemType) {
                 Favorites.ITEM_TYPE_APPLICATION,
-                Favorites.ITEM_TYPE_DEEP_SHORTCUT -> processAppOrDeepShortcut()
-                Favorites.ITEM_TYPE_SHORTCUT -> processLegacyShortcut()
+                Favorites.ITEM_TYPE_DEEP_SHORTCUT,
+                Favorites.ITEM_TYPE_SHORTCUT -> {
+                    if (isRestoreFromBackup) {
+                        processRestoredItemDirectly()
+                    } else if (c.itemType == Favorites.ITEM_TYPE_SHORTCUT) {
+                        processLegacyShortcut()
+                    } else {
+                        processAppOrDeepShortcut()
+                    }
+                }
                 Favorites.ITEM_TYPE_FOLDER,
                 Favorites.ITEM_TYPE_APP_PAIR -> processFolderOrAppPair()
                 Favorites.ITEM_TYPE_APPWIDGET,
@@ -185,6 +197,125 @@ class WorkspaceItemProcessor(
         c.checkAndAddItem(info, loadedItems, memoryLogger)
     }
 
+    /** Loads the saved backup row as-is, without resolving packages or shortcuts. */
+    private fun processRestoredItemDirectly() {
+        val intent = normalizeAndPersistIceBoxIntent(c.parseIntent() ?: Intent())
+        val info = loadRestoredWorkspaceItem(intent)
+        val useLowResIcon = !c.isOnWorkspaceOrHotseat
+
+        FileLog.d(
+            TAG,
+            "Restoring item directly from backup: id=${c.id}, title=${c.title}, " +
+                "itemType=${c.itemType}, intent=$intent",
+        )
+        c.markRestored()
+        iconRequestInfos.add(c.createIconRequestInfo(info, useLowResIcon))
+        c.applyCommonProperties(info)
+        info.intent = intent
+        info.rank = c.rank
+        info.spanX = 1
+        info.spanY = 1
+        info.options = c.options
+        c.checkAndAddItem(info, loadedItems, memoryLogger)
+    }
+
+    /**
+     * Prefer Ice Box's current ShortcutInfo when it is available. Its icon contains the current
+     * frozen-state artwork; the backup database only contains the old, already-greyed bitmap.
+     */
+    private fun loadRestoredWorkspaceItem(intent: Intent): WorkspaceItemInfo {
+        if (c.itemType == Favorites.ITEM_TYPE_DEEP_SHORTCUT &&
+            intent.component?.packageName == ICE_BOX_PACKAGE
+        ) {
+            val key = ShortcutKey.fromIntent(intent, c.user)
+            val shortcut = shortcutKeyToPinnedShortcuts[key] ?: retryDeepShortcutById(key)
+            val info = if (shortcut != null) {
+                val shortcutInfo = CacheableShortcutInfo(
+                    shortcut,
+                    ApplicationInfoWrapper(context, ICE_BOX_PACKAGE, c.user),
+                )
+                allDeepShortcuts.add(shortcutInfo)
+                WorkspaceItemInfo(shortcut, context)
+            } else {
+                c.loadSimpleWorkspaceItem()
+            }
+
+            // Always use the target app's original icon. Ice Box can publish a greyed bitmap for
+            // a frozen shortcut, even when a ShortcutInfo is available.
+            loadIceBoxTargetIcon(intent)?.let { info.bitmap = it }
+            info.bitmap = info.bitmap.withBadgeInfo(
+                iconCache.getShortcutInfoBadge(ICE_BOX_PACKAGE, c.user),
+            )
+            return info
+        }
+        val info = c.loadSimpleWorkspaceItem()
+        return info
+    }
+
+    private fun loadIceBoxTargetIcon(intent: Intent): BitmapInfo? {
+        val targetPackage = intent.getStringExtra(ShortcutKey.EXTRA_SHORTCUT_ID)
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+        return try {
+            val appInfo = launcherApps.getApplicationInfo(
+                targetPackage,
+                PackageManager.MATCH_UNINSTALLED_PACKAGES or
+                    PackageManager.MATCH_DISABLED_COMPONENTS,
+                c.user,
+            ) ?: return null
+            LauncherIcons.obtain(context).use { iconFactory ->
+                iconFactory.createBadgedIconBitmap(
+                    appInfo.loadIcon(context.packageManager),
+                    IconOptions().setUser(c.user),
+                )
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        } catch (_: RuntimeException) {
+            null
+        }
+    }
+
+    /**
+     * Ice Box changed the IDs of its published shortcuts. Older backups contain IDs such as
+     * "39com.tencent.mobileqq0", while current Ice Box publishes "com.tencent.mobileqq".
+     * Keep the launcher intent pointed at Ice Box, but translate the saved ID to the current
+     * target-package ID so LauncherApps.startShortcut() can resolve it again.
+     */
+    private fun normalizeAndPersistIceBoxIntent(intent: Intent): Intent {
+        val normalizedIntent = normalizeIceBoxIntent(intent)
+        if (normalizedIntent.toUri(0) != intent.toUri(0)) {
+            c.updater().put(Favorites.INTENT, normalizedIntent.toUri(0)).commit()
+        }
+        return normalizedIntent
+    }
+
+    private fun normalizeIceBoxIntent(intent: Intent): Intent {
+        if (c.itemType != Favorites.ITEM_TYPE_DEEP_SHORTCUT) return intent
+        if (intent.component?.packageName != ICE_BOX_PACKAGE) return intent
+
+        val savedId = intent.getStringExtra(ShortcutKey.EXTRA_SHORTCUT_ID) ?: return intent
+        if (savedId.isEmpty() || !savedId.first().isDigit()) return intent
+
+        val withoutNumericPrefix = savedId.dropWhile { it.isDigit() }
+        val userSuffix = c.serialNumber.toString()
+        val targetPackage = withoutNumericPrefix.removeSuffix(userSuffix)
+        if (targetPackage.isEmpty()) return intent
+
+        FileLog.d(
+            TAG,
+            "Normalizing Ice Box shortcut id=$savedId to target=$targetPackage " +
+                "for item id=${c.id}",
+        )
+        return Intent(Intent.ACTION_VIEW)
+            .setComponent(ComponentName(ICE_BOX_PACKAGE, ICE_BOX_SHORTCUT_ACTION))
+            .setPackage(ICE_BOX_PACKAGE)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            .putExtra(ShortcutKey.EXTRA_SHORTCUT_ID, targetPackage)
+            .putExtra(ICE_BOX_USER_HASH, c.serialNumber)
+            .putExtra(ICE_BOX_PACKAGE_NAME, targetPackage)
+    }
+
     /**
      * This method verifies that an app shortcut should be shown on the home screen, updates the
      * database accordingly, formats the data in such a way that it is ready to be added to the data
@@ -214,6 +345,9 @@ class WorkspaceItemProcessor(
             c.markDeleted("Null intent from db for item id=${c.id}", RestoreError.APP_NO_DB_INTENT)
             return
         }
+        // Ice Box shortcut IDs changed between versions. Normalize them on every load, not only
+        // during backup restore, and persist the current ID so a Launcher restart remains usable.
+        intent = normalizeAndPersistIceBoxIntent(intent)
         var disabledState =
             if (userManagerState.isUserQuiet(c.serialNumber))
                 WorkspaceItemInfo.FLAG_DISABLED_QUIET_USER
@@ -404,7 +538,12 @@ class WorkspaceItemProcessor(
                                 "Keeping Ice Box shortcut whose published ShortcutInfo is missing: " +
                                     "id=${key.id}, user=${c.user}",
                             )
-                            info = c.loadSimpleWorkspaceItem()
+                            val restoredInfo = c.loadSimpleWorkspaceItem()
+                            loadIceBoxTargetIcon(intent)?.let { restoredInfo.bitmap = it }
+                            restoredInfo.bitmap = restoredInfo.bitmap.withBadgeInfo(
+                                iconCache.getShortcutInfoBadge(ICE_BOX_PACKAGE, c.user),
+                            )
+                            info = restoredInfo
                         } else {
                             // The shortcut is no longer valid.
                             c.markDeleted(
@@ -804,6 +943,10 @@ class WorkspaceItemProcessor(
     companion object {
         private const val TAG = "WorkspaceItemProcessor"
         private const val ICE_BOX_PACKAGE = "com.catchingnow.icebox"
+        private const val ICE_BOX_SHORTCUT_ACTION =
+            "com.catchingnow.icebox.activity.ShortcutActionActivity"
+        private const val ICE_BOX_USER_HASH = "RootActionIntentService.USER_HASH"
+        private const val ICE_BOX_PACKAGE_NAME = "RootActionIntentService.PACKAGE_NAME"
 
         private fun logWidgetInfo(
             idp: InvariantDeviceProfile,

@@ -36,6 +36,8 @@ class ShortcutsChangedTask(
     private val shouldUpdateIdMap: Boolean,
 ) : ModelUpdateTask {
 
+    private val isIceBox = packageName == ICE_BOX_PACKAGE
+
     override fun execute(
         taskController: ModelTaskController,
         dataModel: BgDataModel,
@@ -108,7 +110,7 @@ class ShortcutsChangedTask(
             }
 
             taskController.bindUpdatedWorkspaceItems(updatedWorkspaceItemInfos)
-            if (nonPinnedIds.isNotEmpty()) {
+            if (nonPinnedIds.isNotEmpty() && !isIceBox) {
                 taskController.deleteAndBindComponentsRemoved(
                     ItemInfoMatcher.ofShortcutKeys(
                         nonPinnedIds.mapTo(mutableSetOf()) { ShortcutKey(packageName, user, it) }
@@ -123,5 +125,9 @@ class ShortcutsChangedTask(
             dataModel.updateDeepShortcutCounts(packageName, user, shortcuts)
             taskController.bindDeepShortcuts(dataModel)
         }
+    }
+
+    companion object {
+        private const val ICE_BOX_PACKAGE = "com.catchingnow.icebox"
     }
 }

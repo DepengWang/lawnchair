@@ -23,6 +23,14 @@
 -keep,allowshrinking,allowoptimization class app.lawnchair.LawnchairLauncher { *; }
 -keep,allowshrinking,allowoptimization class app.lawnchair.compatlib.** { *; }
 
+# Compose-generated code reads StringPref's stability metadata. Keep this nested preference
+# class intact because R8 class optimization can otherwise remove its $stable field while the
+# generated Compose call sites still reference it.
+-keep class app.lawnchair.preferences.BasePreferenceManager$StringPref { *; }
+-keepclassmembers class app.lawnchair.preferences.BasePreferenceManager$StringPref {
+    public static final int $stable;
+}
+
 -keep,allowshrinking,allowoptimization class com.google.protobuf.Timestamp { *; }
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
 

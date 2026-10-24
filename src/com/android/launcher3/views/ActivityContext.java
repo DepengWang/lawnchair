@@ -472,13 +472,18 @@ public interface ActivityContext extends SavedStateRegistryOwner {
                         ? SPLASH_SCREEN_STYLE_SOLID_COLOR : -1 /* SPLASH_SCREEN_STYLE_UNDEFINED */);
         UserHandle user = item == null ? null : item.user;
         Bundle optsBundle = options.toBundle();
+        boolean isIceBoxShortcutAction = ICE_BOX_PACKAGE.equals(intent.getPackage())
+                && intent.getComponent() != null
+                && ICE_BOX_SHORTCUT_ACTION.equals(intent.getComponent().getClassName());
         // Prepare intent
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         if (v != null) {
             intent.setSourceBounds(Utilities.getViewBounds(v));
         }
         try {
-            if (isShortcut) {
+            if (isIceBoxShortcutAction) {
+                context.startActivity(intent, optsBundle);
+            } else if (isShortcut) {
                 String id = ((WorkspaceItemInfo) item).getDeepShortcutId();
                 String packageName = intent.getPackage();
                 ((Context) this).getSystemService(LauncherApps.class).startShortcut(
@@ -501,6 +506,10 @@ public interface ActivityContext extends SavedStateRegistryOwner {
         }
         return null;
     }
+
+    String ICE_BOX_PACKAGE = "com.catchingnow.icebox";
+    String ICE_BOX_SHORTCUT_ACTION =
+            "com.catchingnow.icebox.activity.ShortcutActionActivity";
 
     /**
      * Creates and logs a new app launch event.

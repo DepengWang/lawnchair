@@ -18,7 +18,6 @@ import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherFiles
 import com.android.launcher3.R
 import com.android.launcher3.model.DeviceGridState
-import com.android.launcher3.model.ModelDbController
 import com.android.launcher3.provider.RestoreDbTask
 import com.google.protobuf.Timestamp
 import java.io.File
@@ -77,14 +76,80 @@ class LawnchairBackup(
                 wallpaperManager.setBitmap(BitmapFactory.decodeStream(it))
             }
         }
-        context.getDatabasePath(LAUNCHER_DB_FILE_NAME).parentFile?.deleteRecursively()
+        if (contents.hasFlag(INCLUDE_LAYOUT_AND_SETTINGS)) {
+            context.getDatabasePath(LAUNCHER_DB_FILE_NAME).parentFile?.deleteRecursively()
+        }
         readZip(handlers)
-        // Written after the zip has been extracted: the backed up preferences file is one of
-        // the restored entries, so writing the grid state first would let it be overwritten.
-        DeviceGridState(info.gridState).writeToPrefs(context, true)
+        if (contents.hasFlag(INCLUDE_LAYOUT_AND_SETTINGS)) {
+            // The process may already have cached the old SharedPreferences and IDP. Do not use
+            // them after replacing the files on disk: an editor commit here would write the old
+            // in-memory map back over the restored grid. The next process will consume these
+            // values during RestoreDbTask.createRestoreTask().
+            patchRestoredPreferences(getFiles(context, forRestore = true).getValue(PREFS_FILE_NAME))
+        }
+    }
 
-        val dbController = ModelDbController(context)
-        RestoreDbTask.performRestore(context, dbController)
+    private fun patchRestoredPreferences(file: File) {
+        if (!file.exists()) return
+
+        var xml = file.readText()
+        val gridSize = info.gridState.gridSize
+        val gridParts = gridSize.split(",")
+        if (gridParts.size == 2) {
+            xml = replacePreferenceEntry(
+                xml,
+                "pref_workspaceColumns",
+                "<int name=\"pref_workspaceColumns\" value=\"${gridParts[0]}\" />",
+            )
+            xml = replacePreferenceEntry(
+                xml,
+                "pref_workspaceRows",
+                "<int name=\"pref_workspaceRows\" value=\"${gridParts[1]}\" />",
+            )
+            xml = replacePreferenceEntry(
+                xml,
+                "migration_src_workspace_size",
+                "<string name=\"migration_src_workspace_size\">$gridSize</string>",
+            )
+        }
+        xml = replacePreferenceEntry(
+            xml,
+            "pref_hotseatColumns",
+            "<int name=\"pref_hotseatColumns\" value=\"${info.gridState.hotseatCount}\" />",
+        )
+        xml = replacePreferenceEntry(
+            xml,
+            "migration_src_hotseat_count",
+            "<int name=\"migration_src_hotseat_count\" value=\"${info.gridState.hotseatCount}\" />",
+        )
+        xml = replacePreferenceEntry(
+            xml,
+            "migration_src_device_type",
+            "<int name=\"migration_src_device_type\" value=\"${info.gridState.deviceType}\" />",
+        )
+
+        // RestoreDbTask reads these flags from the freshly loaded preferences on the next
+        // process start. Writing them into the restored XML avoids the old in-memory
+        // SharedPreferences instance overwriting the backup.
+        xml = replacePreferenceEntry(
+            xml,
+            RestoreDbTask.RESTORED_DEVICE_TYPE,
+            "<int name=\"${RestoreDbTask.RESTORED_DEVICE_TYPE}\" value=\"${info.gridState.deviceType}\" />",
+        )
+        xml = replacePreferenceEntry(
+            xml,
+            RestoreDbTask.FIRST_LOAD_AFTER_RESTORE_KEY,
+            "<boolean name=\"${RestoreDbTask.FIRST_LOAD_AFTER_RESTORE_KEY}\" value=\"true\" />",
+        )
+        file.writeText(xml)
+    }
+
+    private fun replacePreferenceEntry(xml: String, key: String, entry: String): String {
+        val lines = xml.split('\n').filterNot { it.contains("name=\"$key\"") }.toMutableList()
+        val closingMap = lines.indexOfLast { it.trim() == "</map>" }
+        if (closingMap < 0) return xml
+        lines.add(closingMap, "    $entry")
+        return lines.joinToString("\n")
     }
 
     private suspend fun readZip(handlers: Map<String, suspend (InputStream) -> Unit>) {

@@ -133,7 +133,9 @@ public class ModelDbController {
 
     protected DatabaseHelper createDatabaseHelper(boolean forMigration, String dbFile) {
         boolean isSandbox = mContext instanceof SandboxContext;
-        String dbName = isSandbox ? null : InvariantDeviceProfile.INSTANCE.get(mContext).dbFile;
+        // dbFile can come from a restored backup while the in-memory IDP still describes the
+        // pre-restore grid. Use the requested database name for the restored file rename.
+        String dbName = isSandbox ? null : dbFile;
 
         try {
             if (!forMigration && dbName != null) {

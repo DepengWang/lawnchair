@@ -69,7 +69,9 @@ public class AllAppsSwipeController extends AbstractStateChangeTouchController {
     // ---- Custom interpolators for NORMAL -> ALL_APPS on phones only. ----
 
     public static final float ALL_APPS_STATE_TRANSITION_ATOMIC = 0.3333f;
-    public static final float ALL_APPS_STATE_TRANSITION_MANUAL = 0.4f;
+    // Commit a manual workspace -> All Apps swipe after a shorter drag so the
+    // app drawer feels more responsive to small upward gestures.
+    public static final float ALL_APPS_STATE_TRANSITION_MANUAL = 0.2f;
     private static final float ALL_APPS_FADE_END_ATOMIC = 0.8333f;
     private static final float ALL_APPS_FADE_END_MANUAL = 0.8f;
     private static final float ALL_APPS_FULL_DEPTH_PROGRESS = 0.5f;

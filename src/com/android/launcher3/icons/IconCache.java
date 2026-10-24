@@ -31,6 +31,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
 import android.content.pm.ShortcutInfo;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
@@ -103,6 +104,7 @@ public class IconCache extends BaseIconCache {
             "extra_shortcut_badge_override_package";
 
     private static final String TAG = "Launcher.IconCache";
+    private static final String ICE_BOX_PACKAGE = "com.catchingnow.icebox";
 
     private final Predicate<ItemInfoWithIcon> mIsUsingFallbackOrNonDefaultIconCheck = w ->
             w.bitmap != null && (w.bitmap.isNullOrLowRes() || !isDefaultIcon(w.bitmap, w.user));
@@ -311,6 +313,13 @@ public class IconCache extends BaseIconCache {
      */
     public <T extends ItemInfoWithIcon> void getShortcutIcon(T info, CacheableShortcutInfo si,
             @NonNull Predicate<T> fallbackIconCheck) {
+        BitmapInfo iceBoxTargetIcon = getIceBoxTargetIcon(si.getShortcutInfo());
+        if (iceBoxTargetIcon != null) {
+            info.bitmap = iceBoxTargetIcon.withBadgeInfo(
+                    getShortcutInfoBadge(ICE_BOX_PACKAGE, si.getShortcutInfo().getUserHandle()));
+            return;
+        }
+
         UserHandle user = CacheableShortcutCachingLogic.INSTANCE.getUser(si);
         BitmapInfo bitmapInfo = cacheLocked(
                 CacheableShortcutCachingLogic.INSTANCE.getComponent(si),
@@ -329,6 +338,42 @@ public class IconCache extends BaseIconCache {
         info.bitmap = LawnchairShortcutActivity.Companion.shouldSkipShortcutBadge(context, si.getShortcutInfo())
             ? bitmapInfo.withFlags(FlagOp.NO_OP)
             : bitmapInfo.withBadgeInfo(getShortcutInfoBadge(si.getShortcutInfo()));
+    }
+
+    /**
+     * Ice Box can publish a greyed-out shortcut icon for frozen apps. Use the target package's
+     * APK icon instead, so every refresh keeps the original app icon and only adds the Ice Box
+     * badge.
+     */
+    @Nullable
+    private BitmapInfo getIceBoxTargetIcon(@NonNull ShortcutInfo shortcutInfo) {
+        if (!ICE_BOX_PACKAGE.equals(shortcutInfo.getPackage())) {
+            return null;
+        }
+
+        String targetPackage = shortcutInfo.getId();
+        if (TextUtils.isEmpty(targetPackage)) {
+            return null;
+        }
+
+        try {
+            ApplicationInfo appInfo = mLauncherApps.getApplicationInfo(
+                    targetPackage,
+                    PackageManager.MATCH_UNINSTALLED_PACKAGES
+                            | PackageManager.MATCH_DISABLED_COMPONENTS,
+                    shortcutInfo.getUserHandle());
+            if (appInfo == null) {
+                return null;
+            }
+
+            try (LauncherIcons iconFactory = LauncherIcons.obtain(context)) {
+                return iconFactory.createBadgedIconBitmap(
+                        appInfo.loadIcon(context.getPackageManager()),
+                        new BaseIconFactory.IconOptions().setUser(shortcutInfo.getUserHandle()));
+            }
+        } catch (PackageManager.NameNotFoundException | RuntimeException e) {
+            return null;
+        }
     }
 
     /**
