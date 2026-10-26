@@ -203,6 +203,11 @@ public class LauncherClient {
         if (!mDestroyed) {
             Log.i("FEED", "2");
             mLauncherService.setStopped(false);
+            // Recreate both bindings whenever the launcher comes back after an
+            // upgrade/restart. The Lawnfeed proxy can otherwise retain a stale
+            // connection while Google App reports a null overlay binder.
+            mBaseService.disconnect();
+            mLauncherService.disconnect();
             connect();
             mActivityState |= 1;
             if (mOverlay != null && mLayoutParams != null) {

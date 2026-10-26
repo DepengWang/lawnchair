@@ -235,6 +235,8 @@
     <string name="material_expressive_description">Enable Material 3 Expressive changes in the workspace</string>
 
     <string name="folder_shape_label">Folder shape</string>
+    <string name="folder_label_font">Folder label font</string>
+    <string name="folder_label_font_system">Follow system</string>
     <string name="folder_label">Folder</string>
     <string name="app_icon_shape_label">App</string>
 
@@ -412,6 +414,8 @@
     <string name="pref_fonts_missing_font">Font not found</string>
 
     <string name="font_label">Font (experimental)</string>
+    <string name="desktop_icon_font_group">Icon font</string>
+    <string name="desktop_icon_font">Desktop and drawer icon font</string>
     <string name="fontWorkspace">General</string>
     <string name="fontHeading">Headings</string>
     <string name="fontHeadingMedium">Headings (medium)</string>
@@ -510,6 +514,19 @@
     <string name="smartspace_time_follow_system">Follow system</string>
     <string name="smartspace_time_12_hour_format">12-hour format</string>
     <string name="smartspace_time_24_hour_format">24-hour format</string>
+    <string name="smartspace_clock_font_size">Clock font size</string>
+    <string name="smartspace_clock_font_size_sp">%1$d sp</string>
+    <string name="smartspace_clock_font">Clock font</string>
+    <string name="smartspace_health_data_heading">Health data</string>
+    <string name="smartspace_health_data_access">Request health data access</string>
+    <string name="smartspace_health_data_access_description">Ask for permission to read the health data shown in this widget.</string>
+    <string name="smartspace_health_connect_settings">Open Health Connect settings</string>
+    <string name="smartspace_health_connect_settings_description">Use this if the permission request does not appear.</string>
+    <string name="smartspace_health_connect_unavailable">Health Connect is unavailable. Install or update it to connect health data.</string>
+    <string name="smartspace_health_access_granted">Health data access granted.</string>
+    <string name="smartspace_health_access_incomplete">Some health data permissions were not granted.</string>
+    <string name="health_permissions_rationale_title">Health data access</string>
+    <string name="health_permissions_rationale_message">Lawnchair reads steps, sleep, heart rate, oxygen saturation, and exercise distance from Health Connect to display them in the home-screen widget. This widget reads the data on this device and does not upload health records.</string>
 
     <!-- Available targets -->
     <string name="smartspace_weather">Weather</string>

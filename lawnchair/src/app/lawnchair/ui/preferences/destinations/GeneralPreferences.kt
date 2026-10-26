@@ -142,6 +142,16 @@ fun GeneralPreferences(modifier: Modifier = Modifier) {
                 description = stringResource(id = R.string.live_information_description),
             )
         }
+        PreferenceGroup(heading = stringResource(R.string.desktop_icon_font_group)) {
+            ListPreference(
+                adapter = prefs.desktopIconFont.getAdapter(),
+                entries = fixedFontEntries(
+                    context,
+                    stringResource(R.string.folder_label_font_system),
+                ),
+                label = stringResource(R.string.desktop_icon_font),
+            )
+        }
         ExpandAndShrink(visible = prefs2.enableFontSelection.asState().value) {
             PreferenceGroup(heading = stringResource(id = R.string.font_label)) {
                 FontPreference(

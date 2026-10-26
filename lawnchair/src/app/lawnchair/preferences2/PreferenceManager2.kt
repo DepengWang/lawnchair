@@ -776,6 +776,16 @@ class PreferenceManager2 @Inject constructor(
         save = { it.toString() },
     )
 
+    val smartspaceClockFontSize = preference(
+        key = intPreferencesKey("smartspace_clock_font_size"),
+        defaultValue = 108,
+    )
+
+    val smartspaceClockFont = preference(
+        key = stringPreferencesKey("smartspace_clock_font"),
+        defaultValue = "orbitron",
+    )
+
     val smartspaceCalendar = preference(
         key = stringPreferencesKey(name = "smartspace_calendar"),
         defaultValue = SmartspaceCalendar.fromString(context.getString(R.string.config_default_smart_space_calendar)),

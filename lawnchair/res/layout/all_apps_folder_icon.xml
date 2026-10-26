@@ -32,5 +32,6 @@
         android:layout_gravity="top"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:iconDisplay="all_apps"/>
+        app:iconDisplay="all_apps"
+        app:customFontType="@id/font_folder" />
 </com.android.launcher3.folder.FolderIcon>

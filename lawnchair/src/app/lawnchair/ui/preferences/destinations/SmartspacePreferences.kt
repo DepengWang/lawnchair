@@ -17,9 +17,13 @@
 package app.lawnchair.ui.preferences.destinations
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.view.ContextThemeWrapper
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import androidx.compose.ui.viewinterop.AndroidView
 import app.lawnchair.preferences.PreferenceAdapter
 import app.lawnchair.preferences.getAdapter
@@ -60,6 +66,7 @@ import app.lawnchair.ui.theme.isSelectedThemeDark
 import app.lawnchair.ui.theme.preferenceGroupColor
 import com.android.launcher3.R
 import com.kieronquinn.app.smartspacer.sdk.SmartspacerConstants
+import app.lawnchair.smartspace.clockHealthPermissions
 
 @Composable
 fun SmartspacePreferences(
@@ -113,6 +120,12 @@ fun SmartspacePreferences(
                     }
                 }
             }
+        }
+        PreferenceGroup(
+            heading = stringResource(R.string.smartspace_health_data_heading),
+        ) {
+            SmartspaceHealthDataPreference()
+            SmartspaceHealthConnectSettingsPreference()
         }
     }
 }
@@ -248,7 +261,105 @@ fun SmartspaceDateAndTimePreferences(
         ExpandAndShrink(visible = supportCustomizationFormat && showTimeAdapter.state.value) {
             SmartspaceTimeFormatPreference()
         }
+        SmartspaceClockFontSizePreference()
+        SmartspaceClockFontPreference()
     }
+}
+
+@Composable
+fun SmartspaceHealthDataPreference(
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val permissionsLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract(),
+        onResult = { grantedPermissions ->
+            val message = if (grantedPermissions.containsAll(clockHealthPermissions)) {
+                R.string.smartspace_health_access_granted
+            } else {
+                R.string.smartspace_health_access_incomplete
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        },
+    )
+    val healthConnectAvailable = remember(context) {
+        HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
+    }
+
+    ClickablePreference(
+        label = stringResource(R.string.smartspace_health_data_access),
+        subtitle = stringResource(R.string.smartspace_health_data_access_description),
+        modifier = modifier,
+    ) {
+        if (!healthConnectAvailable) {
+            Toast.makeText(context, R.string.smartspace_health_connect_unavailable, Toast.LENGTH_LONG).show()
+        } else {
+            try {
+                permissionsLauncher.launch(clockHealthPermissions)
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(context, R.string.smartspace_health_connect_unavailable, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmartspaceHealthConnectSettingsPreference() {
+    val context = LocalContext.current
+    ClickablePreference(
+        label = stringResource(R.string.smartspace_health_connect_settings),
+        subtitle = stringResource(R.string.smartspace_health_connect_settings_description),
+    ) {
+        try {
+            context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, R.string.smartspace_health_connect_unavailable, Toast.LENGTH_LONG).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(context, R.string.smartspace_health_connect_unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+}
+
+@Composable
+fun SmartspaceClockFontSizePreference(
+    modifier: Modifier = Modifier,
+) {
+    val entries = remember {
+        (0..9).map { index ->
+            val sizeSp = 108 - index * 8
+            ListPreferenceEntry(sizeSp) {
+                stringResource(R.string.smartspace_clock_font_size_sp, sizeSp)
+            }
+        }
+    }
+    val adapter = preferenceManager2().smartspaceClockFontSize.getAdapter()
+
+    ListPreference(
+        adapter = adapter,
+        entries = entries,
+        label = stringResource(R.string.smartspace_clock_font_size),
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun SmartspaceClockFontPreference(
+    modifier: Modifier = Modifier,
+) {
+    val entries = remember {
+        listOf(
+            ListPreferenceEntry("orbitron") { "Orbitron" },
+            ListPreferenceEntry("clockopia") { "Clockopia" },
+        )
+    }
+    val adapter = preferenceManager2().smartspaceClockFont.getAdapter()
+
+    ListPreference(
+        adapter = adapter,
+        entries = entries,
+        label = stringResource(R.string.smartspace_clock_font),
+        modifier = modifier,
+    )
 }
 
 @Composable

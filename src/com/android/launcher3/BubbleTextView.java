@@ -79,6 +79,7 @@ import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 
+import app.lawnchair.font.FontManager;
 import com.android.launcher3.accessibility.BaseAccessibilityDelegate;
 import com.android.launcher3.dot.DotInfo;
 import com.android.launcher3.dragndrop.DragOptions.PreDragCondition;
@@ -420,6 +421,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public void applyFromWorkspaceItem(WorkspaceItemInfo info) {
         applyIconAndLabel(info);
         setItemInfo(info);
+        FontManager.INSTANCE.get(getContext()).setIconFont(this);
 
         applyDotState(info, false /* animate */);
         setDownloadStateContentDescription(info, info.getProgressLevel());
@@ -429,6 +431,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public void applyFromApplicationInfo(AppInfo info) {
         applyIconAndLabel(info);
         setItemInfo(info);
+        FontManager.INSTANCE.get(getContext()).setIconFont(this);
 
         // Verify high res immediately
         verifyHighRes();
@@ -445,6 +448,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         applyIconAndLabel(info);
         // We don't need to check the info since it's not a WorkspaceItemInfo
         setItemInfo(info);
+        FontManager.INSTANCE.get(getContext()).setIconFont(this);
 
         // Verify high res immediately
         verifyHighRes();

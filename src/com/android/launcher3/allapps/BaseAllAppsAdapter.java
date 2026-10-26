@@ -40,6 +40,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
 
+import app.lawnchair.font.FontManager;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.search.SearchAdapterProvider;
@@ -293,6 +294,8 @@ public abstract class BaseAllAppsAdapter<T extends Context & ActivityContext> ex
                                         && privateProfileManager.isPrivateSpaceItem(adapterItem)));
                 icon.setSkipUserBadge(skipUserBadge);
                 icon.applyFromApplicationInfo(adapterItem.itemInfo);
+                FontManager.INSTANCE.get(mActivityContext).setCustomFont(
+                        icon, R.id.font_base_icon);
                 icon.setOnFocusChangeListener(mIconFocusListener);
                 if (privateProfileManager != null) {
                     // Set the alpha of the private space icon to 0 upon expanding the header so the
@@ -367,6 +370,8 @@ public abstract class BaseAllAppsAdapter<T extends Context & ActivityContext> ex
                 // LC-Note: Implement long-press support for folder type for purposes like showing popup
                 FolderIcon folderIcon = FolderIcon.inflateFolderAndIcon(
                         R.layout.all_apps_folder_icon, mActivityContext, container, folderInfo);
+                FontManager.INSTANCE.get(mActivityContext).setCustomFont(
+                        folderIcon.getFolderName(), R.id.font_folder);
                 folderIcon.setOnLongClickListener(mOnIconLongClickListener);
                 container.addView(folderIcon);
                 break;

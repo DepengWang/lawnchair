@@ -26,6 +26,7 @@ import app.lawnchair.preferences2.preferenceManager2
 import app.lawnchair.ui.preferences.LocalIsExpandedScreen
 import app.lawnchair.ui.preferences.components.NavigationActionPreference
 import app.lawnchair.ui.preferences.components.colorpreference.ColorPreference
+import app.lawnchair.ui.preferences.components.controls.ListPreference
 import app.lawnchair.ui.preferences.components.controls.SliderPreference
 import app.lawnchair.ui.preferences.components.controls.SwitchPreference
 import app.lawnchair.ui.preferences.components.layout.ExpandAndShrink
@@ -61,6 +62,14 @@ fun FolderPreferences(
                 },
             )
             ColorPreference(preference = prefs2.folderColor)
+            ListPreference(
+                adapter = prefs.folderLabelFont.getAdapter(),
+                entries = fixedFontEntries(
+                    context,
+                    stringResource(R.string.folder_label_font_system),
+                ),
+                label = stringResource(R.string.folder_label_font),
+            )
             SliderPreference(
                 label = stringResource(id = R.string.folder_preview_bg_opacity_label),
                 adapter = prefs2.folderPreviewBackgroundOpacity.getAdapter(),

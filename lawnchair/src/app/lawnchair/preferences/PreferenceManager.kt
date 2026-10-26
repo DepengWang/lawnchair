@@ -141,6 +141,16 @@ class PreferenceManager @Inject constructor(
 
     private val fontCache = FontCache.INSTANCE.get(context)
     val fontWorkspace = FontPref("pref_workspaceFont", fontCache.uiText, recreate)
+    val desktopIconFont = FontPref(
+        "pref_desktopIconFont",
+        FontCache.SystemFont("sans-serif"),
+        recreate,
+    )
+    val folderLabelFont = FontPref(
+        "pref_folderLabelFont",
+        FontCache.SystemFont("sans-serif"),
+        recreate,
+    )
     val fontHeading = FontPref("pref_fontHeading", fontCache.uiRegular, recreate)
     val fontHeadingMedium = FontPref("pref_fontHeadingMedium", fontCache.uiMedium, recreate)
     val fontBody = FontPref("pref_fontBody", fontCache.uiText, recreate)

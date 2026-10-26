@@ -6,18 +6,19 @@ import android.util.AttributeSet
 import android.widget.TextView
 import androidx.annotation.IdRes
 import androidx.core.content.res.use
-import androidx.lifecycle.lifecycleScope
 import app.lawnchair.preferences.BasePreferenceManager
 import app.lawnchair.preferences.PreferenceManager
-import app.lawnchair.util.lookupLifecycleOwner
 import app.lawnchair.util.runOnMainThread
 import com.android.launcher3.R
 import com.android.launcher3.dagger.ApplicationContext
 import com.android.launcher3.dagger.LauncherAppComponent
 import com.android.launcher3.dagger.LauncherAppSingleton
+import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.SafeCloseable
 import javax.inject.Inject
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 @LauncherAppSingleton
@@ -26,6 +27,7 @@ class FontManager @Inject constructor(
 ) : SafeCloseable {
 
     private val fontCache = FontCache.INSTANCE.get(context)
+    private val scope = MainScope()
 
     private val specMap = createFontMap()
 
@@ -37,7 +39,8 @@ class FontManager @Inject constructor(
 
         val prefs = PreferenceManager.getInstance(context)
         return mapOf(
-            R.id.font_base_icon to FontSpec(prefs.fontWorkspace, sansSerif),
+            R.id.font_base_icon to FontSpec(prefs.desktopIconFont, sansSerif),
+            R.id.font_folder to FontSpec(prefs.folderLabelFont, sansSerif),
             R.id.font_button to FontSpec(prefs.fontHeadingMedium, sansSerifMedium),
             R.id.font_heading to FontSpec(prefs.fontHeading, sansSerif),
             R.id.font_heading_medium to FontSpec(prefs.fontHeadingMedium, sansSerif),
@@ -82,6 +85,10 @@ class FontManager @Inject constructor(
             }
 
             val gsfAxes = GoogleSansFlexVariableFont.axesFor(fontFamily)
+            if (fontType == R.id.font_base_icon) {
+                setSystemFont(textView)
+                return
+            }
             if (gsfAxes != null) {
                 val font = variableFonts.getOrPut(fontFamily!!) {
                     fontCache.googleSansFlexVariable(gsfAxes)
@@ -103,9 +110,29 @@ class FontManager @Inject constructor(
         applyFont(textView, spec.font.createWithWeight(style), spec.fallback)
     }
 
+    fun setIconFont(textView: TextView) {
+        val itemInfo = textView.tag as? ItemInfo
+        val packageName = itemInfo?.targetComponent?.packageName
+        val title = itemInfo?.title?.toString()
+        val keepCustomFont = packageName in CUSTOM_ICON_FONT_PACKAGES ||
+            title in CUSTOM_ICON_FONT_LABELS
+
+        if (keepCustomFont) {
+            setCustomFont(textView, R.id.font_base_icon)
+        } else {
+            setSystemFont(textView)
+        }
+    }
+
+    private fun setSystemFont(textView: TextView) {
+        applyFont(textView, FontCache.SystemFont("sans-serif"), Typeface.SANS_SERIF)
+    }
+
     private fun applyFont(textView: TextView, font: FontCache.Font, fallback: Typeface? = null) {
-        val lifecycleOwner = textView.context.lookupLifecycleOwner() ?: return
-        lifecycleOwner.lifecycleScope.launch {
+        // A font may already be cached when a recycled launcher view is rebound.
+        // Apply it immediately, then keep the asynchronous path for the first load.
+        fontCache.getLoadedFont(font)?.typeface?.let { textView.typeface = it }
+        scope.launch {
             val typeface = fontCache.getTypeface(font) ?: fallback ?: return@launch
             runOnMainThread {
                 textView.typeface = typeface
@@ -114,7 +141,7 @@ class FontManager @Inject constructor(
     }
 
     override fun close() {
-        TODO("Not yet implemented")
+        scope.cancel()
     }
 
     class FontSpec(val loader: () -> FontCache.Font, val fallback: Typeface) {
@@ -126,6 +153,12 @@ class FontManager @Inject constructor(
     companion object {
         @JvmField
         val INSTANCE = DaggerSingletonObject(LauncherAppComponent::getFontManager)
+
+        private val CUSTOM_ICON_FONT_PACKAGES = setOf(
+            "com.teslamotors.tesla",
+            "com.netease.cloudmusic",
+        )
+        private val CUSTOM_ICON_FONT_LABELS = setOf("Tesla", "Music", "网易云音乐")
 
         private val FONT_FAMILY_ATTR = intArrayOf(android.R.attr.fontFamily)
     }

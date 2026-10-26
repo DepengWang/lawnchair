@@ -49,9 +49,13 @@ class FeedBridge(private val context: Context) {
     fun resolveBridge(customPackage: String = prefs.feedProvider.get()): BridgeInfo? {
         val customBridge = customBridgeOrNull(customPackage)
         val feedProvider = customPackage.toBoolean()
+        val lawnfeedBridge = bridgePackages.firstOrNull {
+            it.packageName == "app.lawnchair.lawnfeed" && it.isAvailable()
+        }
         return when {
-            customBridge != null -> customBridge
             !shouldUseFeed && !feedProvider -> null
+            lawnfeedBridge != null -> lawnfeedBridge
+            customBridge != null -> customBridge
             else -> bridgePackages.firstOrNull { it.isAvailable() }
         }
     }
@@ -175,7 +179,12 @@ class FeedBridge(private val context: Context) {
             .asSequence()
             .map { it.serviceInfo.applicationInfo }
             .distinct()
-            .filter { getInstance(context).CustomBridgeInfo(it.packageName).isSigned() }
+            .filter { appInfo ->
+                val feedBridge = getInstance(context)
+                feedBridge.bridgePackages.any {
+                    it.packageName == appInfo.packageName && it.isAvailable()
+                } || feedBridge.CustomBridgeInfo(appInfo.packageName).isSigned()
+            }
 
         @JvmStatic
         fun useBridge(context: Context) = getInstance(context).let { it.shouldUseFeed || it.customBridgeAvailable() }

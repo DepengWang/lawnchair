@@ -42,6 +42,7 @@ import app.lawnchair.preferences.preferenceManager
 import app.lawnchair.ui.ModalBottomSheetContent
 import app.lawnchair.ui.preferences.LocalNavController
 import app.lawnchair.ui.preferences.components.controls.ClickablePreference
+import app.lawnchair.ui.preferences.components.controls.ListPreference
 import app.lawnchair.ui.preferences.components.controls.SwitchPreference
 import app.lawnchair.ui.preferences.components.layout.LoadingScreen
 import app.lawnchair.ui.preferences.components.layout.PreferenceGroup
@@ -60,7 +61,8 @@ import com.google.android.msdl.data.model.MSDLToken
 fun AppDrawerFolderPreferenceItem(
     modifier: Modifier = Modifier,
 ) {
-    val mMSDLPlayerWrapper = MSDLPlayerWrapper.INSTANCE.get(LocalContext.current)
+    val context = LocalContext.current
+    val mMSDLPlayerWrapper = MSDLPlayerWrapper.INSTANCE.get(context)
     val navController = LocalNavController.current
 
     PreferenceGroup(
@@ -117,7 +119,8 @@ fun AppDrawerFoldersPreference(
     onOrderChange: (List<Int>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val mMSDLPlayerWrapper = MSDLPlayerWrapper.INSTANCE.get(LocalContext.current)
+    val context = LocalContext.current
+    val mMSDLPlayerWrapper = MSDLPlayerWrapper.INSTANCE.get(context)
     val bottomSheetHandler = bottomSheetHandler
     val prefs = preferenceManager()
 
@@ -138,6 +141,14 @@ fun AppDrawerFoldersPreference(
                     adapter = prefs.folderApps.getAdapter(),
                     label = stringResource(id = R.string.apps_in_folder_label),
                     description = stringResource(id = R.string.apps_in_folder_description),
+                )
+                ListPreference(
+                    adapter = prefs.folderLabelFont.getAdapter(),
+                    entries = fixedFontEntries(
+                        context,
+                        stringResource(R.string.folder_label_font_system),
+                    ),
+                    label = stringResource(R.string.folder_label_font),
                 )
             }
             PreferenceGroup(heading = stringResource(R.string.folders_label)) {

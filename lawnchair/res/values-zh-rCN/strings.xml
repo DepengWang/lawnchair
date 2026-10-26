@@ -181,6 +181,8 @@
     <string name="material_expressive_label">Material 3 表现力</string>
     <string name="material_expressive_description">在工作区中启用 Material 3 的视觉增强效果</string>
     <string name="folder_shape_label">文件夹形状</string>
+    <string name="folder_label_font">文件夹名称字体</string>
+    <string name="folder_label_font_system">跟随系统</string>
     <string name="folder_label">文件夹</string>
     <string name="app_icon_shape_label">应用</string>
     <string name="gesturenavcontract_label">使用手势导航合同API</string>
@@ -325,6 +327,8 @@
     <string name="pref_fonts_add_fonts_summary">支持 OTF 和 TTF 格式字体</string>
     <string name="pref_fonts_missing_font">未找到字体</string>
     <string name="font_label">字体 (实验性功能)</string>
+    <string name="desktop_icon_font_group">图标字体</string>
+    <string name="desktop_icon_font">桌面和抽屉图标字体</string>
     <string name="fontWorkspace">通用</string>
     <string name="fontHeading">标题</string>
     <string name="fontHeadingMedium">标题(中)</string>
@@ -404,6 +408,19 @@
     <string name="smartspace_time_follow_system">跟随系统</string>
     <string name="smartspace_time_12_hour_format">12小时制</string>
     <string name="smartspace_time_24_hour_format">24小时制</string>
+    <string name="smartspace_clock_font_size">时钟字体大小</string>
+    <string name="smartspace_clock_font_size_sp">%1$d sp</string>
+    <string name="smartspace_clock_font">时钟字体</string>
+    <string name="smartspace_health_data_heading">健康数据</string>
+    <string name="smartspace_health_data_access">申请健康数据权限</string>
+    <string name="smartspace_health_data_access_description">申请读取此微件要显示的健康数据。</string>
+    <string name="smartspace_health_connect_settings">打开 Health Connect 设置</string>
+    <string name="smartspace_health_connect_settings_description">如果权限申请没有弹出，请使用此入口。</string>
+    <string name="smartspace_health_connect_unavailable">Health Connect 不可用，请安装或更新后再连接健康数据。</string>
+    <string name="smartspace_health_access_granted">已授予健康数据访问权限。</string>
+    <string name="smartspace_health_access_incomplete">部分健康数据权限尚未授予。</string>
+    <string name="health_permissions_rationale_title">健康数据访问</string>
+    <string name="health_permissions_rationale_message">Lawnchair 会从 Health Connect 读取步数、睡眠、心率、血氧和运动距离，并显示在主屏幕微件中。此微件仅在本机读取这些数据，不会上传健康记录。</string>
     <!-- Available targets -->
     <string name="smartspace_weather">天气</string>
     <string name="smartspace_battery_status">电池状态</string>

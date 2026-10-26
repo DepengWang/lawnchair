@@ -368,6 +368,8 @@ composeCompiler {
 addFrameworkJar('framework-16.jar')
 
 dependencies {
+    implementation libs.androidx.health.connect.client
+
     implementation projects.iconloaderlib
     implementation projects.searchuilib
     implementation projects.animationlib

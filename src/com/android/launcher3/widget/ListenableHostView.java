@@ -22,11 +22,13 @@ import android.widget.RemoteViews;
 
 import com.android.launcher3.util.SafeCloseable;
 
+import app.lawnchair.LawnchairAppWidgetHostView;
+
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-public class ListenableHostView extends LauncherAppWidgetHostView {
+public class ListenableHostView extends LawnchairAppWidgetHostView {
 
     private Set<Runnable> mUpdateListeners = Collections.EMPTY_SET;
 
