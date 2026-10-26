@@ -48,6 +48,7 @@
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="net.oneplus.weather" />
     </queries>
 
     <!-- Support non-cellular enabled devices -->

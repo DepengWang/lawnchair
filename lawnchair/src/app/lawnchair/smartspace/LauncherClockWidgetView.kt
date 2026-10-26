@@ -516,9 +516,10 @@ class LauncherClockWidgetView @JvmOverloads constructor(
     }
 
     private fun updateWeather(targets: List<SmartspaceTarget>) {
-        val action = targets.firstOrNull {
+        val weatherTarget = targets.firstOrNull {
             it.featureType == SmartspaceTarget.FeatureType.FEATURE_WEATHER
-        }?.headerAction
+        }
+        val action = weatherTarget?.headerAction
         val icon = action?.icon
         val weatherText = action?.subtitle
         if (icon == null || weatherText.isNullOrBlank()) {

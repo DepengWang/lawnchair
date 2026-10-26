@@ -3,13 +3,12 @@ package app.lawnchair.smartspace.provider
 import android.app.Activity
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
-import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
@@ -20,11 +19,11 @@ import app.lawnchair.smartspace.model.SmartspaceAction
 import app.lawnchair.smartspace.model.SmartspaceScores
 import app.lawnchair.smartspace.model.SmartspaceTarget
 import app.lawnchair.util.Temperature
-import app.lawnchair.util.pendingIntent
 import com.android.launcher3.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class SmartspaceWidgetReader(context: Context) :
     SmartspaceDataSource(
@@ -40,9 +39,13 @@ class SmartspaceWidgetReader(context: Context) :
 
     init {
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val provider = appWidgetManager.getInstalledProvidersForPackage(GSA_PACKAGE, null)
-            .firstOrNull { it.provider.className == WIDGET_CLASS_NAME }
+        val provider = appWidgetManager.installedProviders.firstOrNull {
+            it.provider.packageName == WEATHER_PACKAGE && it.provider.className == WIDGET_CLASS_NAME
+        }
         isAvailable = provider != null
+        if (provider != null) {
+            kotlinx.coroutines.MainScope().launch { enabledPref.set(true) }
+        }
         widget = provider?.let {
             val widgetsManager = HeadlessWidgetsManager.INSTANCE.get(context)
             widgetsManager.getWidget(provider, "smartspaceWidgetId")
@@ -60,72 +63,40 @@ class SmartspaceWidgetReader(context: Context) :
     private fun extractWidgetLayout(appWidgetHostView: ViewGroup): List<SmartspaceTarget> {
         val descendants = appWidgetHostView.descendants
         val texts = descendants.filterIsInstance<TextView>().filter { !it.text.isNullOrEmpty() }.toList()
-        val images = descendants.filterIsInstance<ImageView>().toList().filter { it.drawable != null && it.drawable is BitmapDrawable }
-        var weatherIconView: ImageView? = null
-        var cardIconView: ImageView? = null
-        var title: TextView? = null
-        var subtitle: TextView? = null
-        var subtitle2: TextView? = null
-        var temperatureText: TextView? = null
+        val imageViews = descendants.filterIsInstance<ImageView>().toList()
+        val temperature = extractTemperatureText(texts.map { it.text.toString().trim() })
         if (texts.isEmpty()) return listOf(dummyTarget)
-        if (images.isNotEmpty()) {
-            weatherIconView = images.firstOrNull()
-            temperatureText = texts.last()
-        }
-        if (images.size > 1 && texts.size > 2) {
-            cardIconView = images.first()
-            title = texts[0]
-            subtitle = texts[1]
-            if (texts.size > 3) {
-                subtitle2 = texts[2]
-            }
-        }
-        return parseData(extractBitmap(weatherIconView), temperatureText, extractBitmap(cardIconView), title, subtitle, subtitle2)
+        val temperatureView = findTemperatureTextView(texts)
+        // OnePlus puts the current weather glyph beside the city and
+        // temperature. The final ImageView belongs to the Hourly forecast
+        // notice, so it must not be used as the weather icon.
+        val weatherImageView = temperatureView?.parent
+            ?.let { it as? ViewGroup }
+            ?.descendants
+            ?.filterIsInstance<ImageView>()
+            ?.firstOrNull()
+        val weatherIcon = weatherImageView?.drawable?.let(::extractBitmap)
+            ?: imageViews.getOrNull(2)?.drawable?.let(::extractBitmap)
+        return parseData(weatherIcon, temperature)
     }
 
     private fun parseData(
         weatherIcon: Bitmap?,
-        temperature: TextView?,
-        cardIcon: Bitmap?,
-        title: TextView?,
-        subtitle: TextView?,
-        subtitle2: TextView?,
+        temperature: String?,
     ): List<SmartspaceTarget> {
         val weather = parseWeatherData(weatherIcon, temperature) ?: dummyTarget
-        val card = if (cardIcon != null && title != null && subtitle != null) {
-            val pendingIntent = (title.parent.parent.parent as? View)?.pendingIntent
-            val ttl = title.text.toString() + if (subtitle2 != null) subtitle.text.toString() else ""
-            val sub = subtitle2 ?: subtitle
-            SmartspaceTarget(
-                id = "smartspaceWidgetCard",
-                headerAction = SmartspaceAction(
-                    id = "smartspaceWidgetCardAction",
-                    icon = Icon.createWithBitmap(cardIcon),
-                    title = ttl,
-                    subtitle = sub.text,
-                    pendingIntent = pendingIntent,
-                    intent = weather.baseAction?.intent,
-                ),
-                score = SmartspaceScores.SCORE_CALENDAR,
-                featureType = SmartspaceTarget.FeatureType.FEATURE_CALENDAR,
-            )
-        } else {
-            null
-        }
-        return listOfNotNull(card, weather)
+        return listOf(weather)
     }
 
-    private fun parseWeatherData(weatherIcon: Bitmap?, temperatureText: TextView?): SmartspaceTarget? {
-        val temperature = temperatureText?.text?.toString()
-        val pendingIntent = (temperatureText?.parent as? View)?.pendingIntent
+    private fun parseWeatherData(
+        weatherIcon: Bitmap?,
+        temperature: String?,
+    ): SmartspaceTarget? {
         val weatherData = parseWeatherData(
             weatherIcon,
             temperature,
-            pendingIntent,
+            null,
         ) ?: return null
-        val intent = Intent().apply {
-            component = WEATHER_COMPONENT
-        }
         return SmartspaceTarget(
             id = "smartspaceWidgetWeather",
             headerAction = SmartspaceAction(
@@ -134,15 +105,46 @@ class SmartspaceWidgetReader(context: Context) :
                 title = "",
                 subtitle = weatherData.getTitle(),
                 pendingIntent = weatherData.pendingIntent,
-                intent = intent,
+                intent = context.packageManager.getLaunchIntentForPackage(WEATHER_PACKAGE),
             ),
             score = SmartspaceScores.SCORE_WEATHER,
             featureType = SmartspaceTarget.FeatureType.FEATURE_WEATHER,
         )
     }
 
-    private fun extractBitmap(imageView: ImageView?): Bitmap? {
-        return (imageView?.drawable as? BitmapDrawable)?.bitmap
+    private fun extractBitmap(drawable: Drawable): Bitmap {
+        val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 1
+        val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 1
+        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(canvas)
+        }
+    }
+
+    private fun extractTemperatureText(values: List<String>): String? {
+        val explicit = values.firstOrNull { value ->
+            Regex("^-?\\d{1,3}\\s*(?:°\\s*[CF]?|[CFK])$", RegexOption.IGNORE_CASE).matches(value)
+        }
+        if (explicit != null) return explicit
+
+        return values.zipWithNext().firstOrNull { (number, unit) ->
+            number.matches(Regex("^-?\\d{1,3}$")) &&
+                unit.matches(Regex("^°\\s*[CF]?$", RegexOption.IGNORE_CASE))
+        }?.let { (number, unit) -> number + unit }
+    }
+
+    private fun findTemperatureTextView(texts: List<TextView>): TextView? {
+        val explicit = texts.firstOrNull { view ->
+            Regex("^-?\\d{1,3}\\s*(?:°\\s*[CF]?|[CFK])$", RegexOption.IGNORE_CASE)
+                .matches(view.text.toString().trim())
+        }
+        if (explicit != null) return explicit
+
+        return texts.zipWithNext().firstOrNull { (number, unit) ->
+            number.text.toString().trim().matches(Regex("^-?\\d{1,3}$")) &&
+                unit.text.toString().trim().matches(Regex("^°\\s*[CF]?$", RegexOption.IGNORE_CASE))
+        }?.first
     }
 
     data class WeatherData(
@@ -159,17 +161,19 @@ class SmartspaceWidgetReader(context: Context) :
     }
 
     companion object {
-        private const val GSA_PACKAGE = "com.google.android.googlequicksearchbox"
-        private const val WIDGET_CLASS_NAME = "com.google.android.apps.gsa.staticplugins.smartspace.widget.SmartspaceWidgetProvider"
-        private const val GSA_WEATHER = "com.google.android.apps.search.weather.WeatherExportedActivity"
-        private val WEATHER_COMPONENT = ComponentName(GSA_PACKAGE, GSA_WEATHER)
+        private const val WEATHER_PACKAGE = "net.oneplus.weather"
+        private const val WIDGET_CLASS_NAME = "com.oplus.weather.appWidget.TodayWeatherWidgetProvider"
 
         private val dummyTarget = SmartspaceTarget(
             id = "dummyTarget",
             featureType = SmartspaceTarget.FeatureType.FEATURE_WEATHER,
         )
 
-        fun parseWeatherData(weatherIcon: Bitmap?, temperature: String?, intent: PendingIntent? = null): WeatherData? {
+        fun parseWeatherData(
+            weatherIcon: Bitmap?,
+            temperature: String?,
+            intent: PendingIntent? = null,
+        ): WeatherData? {
             return if (weatherIcon != null && temperature != null) {
                 try {
                     val value = temperature.substring(0, temperature.indexOfFirst { (it < '0' || it > '9') && it != '-' }).toInt()
@@ -181,7 +185,8 @@ class SmartspaceWidgetReader(context: Context) :
                                 temperature.contains("C") -> Temperature.Unit.Celsius
                                 temperature.contains("F") -> Temperature.Unit.Fahrenheit
                                 temperature.contains("K") -> Temperature.Unit.Kelvin
-                                else -> throw IllegalArgumentException("only supports C, F and K")
+                                temperature.contains("°") -> Temperature.Unit.Celsius
+                                else -> throw IllegalArgumentException("missing temperature unit")
                             },
                         ),
                         pendingIntent = intent,
@@ -195,5 +200,6 @@ class SmartspaceWidgetReader(context: Context) :
                 null
             }
         }
+
     }
 }
