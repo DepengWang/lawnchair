@@ -124,13 +124,13 @@ internal object HealthMetricsReader {
                             timeRangeFilter = TimeRangeFilter.between(todayStart, now),
                         ),
                     ).records
-                    val matchingDistances = distances.filter { distance ->
-                        runningSessions.any { session ->
+                    runningSessions.mapNotNull { session ->
+                        val matchingDistances = distances.filter { distance ->
                             distance.metadata.dataOrigin.packageName == session.metadata.dataOrigin.packageName &&
                                 distance.startTime < session.endTime && distance.endTime > session.startTime
                         }
-                    }
-                    matchingDistances.takeIf { it.isNotEmpty() }?.sumOf { it.distance.inMeters }
+                        selectSessionDistance(session, matchingDistances)
+                    }.takeIf { it.isNotEmpty() }?.sum()
                 }
             } else null
 
@@ -155,5 +155,34 @@ internal object HealthMetricsReader {
         throw exception
     } catch (_: Exception) {
         null
+    }
+
+    private fun selectSessionDistance(
+        session: ExerciseSessionRecord,
+        distances: List<DistanceRecord>,
+    ): Double? {
+        if (distances.isEmpty()) return null
+
+        val completeSessionDistance = distances
+            .filter { distance ->
+                distance.startTime <= session.startTime &&
+                    distance.endTime >= session.endTime
+            }
+            .minByOrNull { distance ->
+                Duration.between(distance.startTime, distance.endTime).toMillis()
+            }
+        if (completeSessionDistance != null) {
+            return completeSessionDistance.distance.inMeters
+        }
+
+        val nonContainedDistances = distances.filterNot { candidate ->
+            distances.any { container ->
+                container !== candidate &&
+                    container.startTime <= candidate.startTime &&
+                    container.endTime >= candidate.endTime &&
+                    (container.startTime < candidate.startTime || container.endTime > candidate.endTime)
+            }
+        }
+        return nonContainedDistances.takeIf { it.isNotEmpty() }?.sumOf { it.distance.inMeters }
     }
 }

@@ -131,6 +131,15 @@ public class LauncherDelegate {
         return false;
     }
 
+    /** Switches the workspace to the next or previous page. */
+    void switchWorkspacePage(boolean next) {
+        if (next) {
+            mLauncher.getWorkspace().scrollRight();
+        } else {
+            mLauncher.getWorkspace().scrollLeft();
+        }
+    }
+
     private static class FallbackDelegate extends LauncherDelegate {
 
         private final ActivityContext mContext;
@@ -144,6 +153,9 @@ public class LauncherDelegate {
         boolean isDraggingEnabled() {
             return false;
         }
+
+        @Override
+        void switchWorkspacePage(boolean next) { }
 
         @Override
         void beginDragShared(View child, DragSource source, DragOptions options) { }

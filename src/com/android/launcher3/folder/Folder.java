@@ -273,6 +273,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     // confirmed single-finger tap rather than on ACTION_DOWN, so multi-finger
     // gestures (e.g. 3-finger / palm screenshot) don't accidentally dismiss it.
     private boolean mPendingOutsideClose = false;
+    private boolean mPendingOutsideSwipe = false;
     private boolean mPendingOutsideKeyboardDismiss = false;
     private float mOutsideDownX;
     private float mOutsideDownY;
@@ -1960,6 +1961,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
             BaseDragLayer dl = (BaseDragLayer) getParent();
             mPendingOutsideClose = false;
+            mPendingOutsideSwipe = false;
             mPendingOutsideKeyboardDismiss = false;
 
             if (mIsEditingName) {
@@ -1989,24 +1991,38 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
     @Override
     public boolean onControllerTouchEvent(MotionEvent ev) {
-        if (!mPendingOutsideClose && !mPendingOutsideKeyboardDismiss) {
+        if (!mPendingOutsideClose && !mPendingOutsideKeyboardDismiss && !mPendingOutsideSwipe) {
             return false;
         }
         switch (ev.getActionMasked()) {
             case MotionEvent.ACTION_POINTER_DOWN:
                 // Multi-finger gesture in progress (e.g. screenshot).
+                mPendingOutsideSwipe = false;
                 mPendingOutsideClose = false;
                 mPendingOutsideKeyboardDismiss = false;
                 break;
             case MotionEvent.ACTION_MOVE:
-                if (Math.hypot(ev.getX() - mOutsideDownX,
-                        ev.getY() - mOutsideDownY) > mTouchSlop) {
+                float dx = ev.getX() - mOutsideDownX;
+                float dy = ev.getY() - mOutsideDownY;
+                if (Math.hypot(dx, dy) > mTouchSlop) {
+                    if (mPendingOutsideClose && Math.abs(dx) > Math.abs(dy)) {
+                        // Horizontal swipe outside the folder: switch workspace page on release.
+                        mPendingOutsideSwipe = true;
+                    }
                     mPendingOutsideClose = false;
                     mPendingOutsideKeyboardDismiss = false;
                 }
                 break;
             case MotionEvent.ACTION_UP:
-                if (ev.getPointerCount() == 1) {
+                if (mPendingOutsideSwipe) {
+                    mPendingOutsideSwipe = false;
+                    float swipeDx = ev.getX() - mOutsideDownX;
+                    if (ev.getPointerCount() == 1 && Math.abs(swipeDx) > mTouchSlop) {
+                        boolean next = (swipeDx < 0) != mContent.mIsRtl;
+                        close(true);
+                        mLauncherDelegate.switchWorkspacePage(next);
+                    }
+                } else if (ev.getPointerCount() == 1) {
                     BaseDragLayer dl = (BaseDragLayer) getParent();
                     if (mPendingOutsideKeyboardDismiss
                             && !dl.isEventOverView(mFolderName, ev)) {
@@ -2020,6 +2036,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 mPendingOutsideKeyboardDismiss = false;
                 break;
             case MotionEvent.ACTION_CANCEL:
+                mPendingOutsideSwipe = false;
                 mPendingOutsideClose = false;
                 mPendingOutsideKeyboardDismiss = false;
                 break;
